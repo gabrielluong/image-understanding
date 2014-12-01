@@ -1,17 +1,20 @@
-function track_objects()
-
-% this is a very simple tracking algo
-% for more serious tracking, look-up the papers in the projects pdf
+% Returns a 1D cell of all the track assignments between the detections
+% of the given frames. Each cell contains a 1x5 cell that contains the
+% following information [current image, next image, similarity score,
+% current DET values, next DET values].
+function track = track_objects()
 FRAME_DIR = '../data/frames/';
-DET_DIR = '../data/results-dets/';
+DET_DIR = '../data/detections/';
 start_frame = 62;
-end_frame = 72;
+% end_frame = 72;
+end_frame = 62;
+track = cell(1, end_frame - start_frame + 1);
 
 for i = start_frame:end_frame
     im_cur = imread(fullfile(FRAME_DIR, sprintf('%06d.jpg', i)));
     data = load(fullfile(DET_DIR, sprintf('%06d_dets.mat', i)));
     dets_cur = data.dets;
-    
+
     im_next = imread(fullfile(FRAME_DIR, sprintf('%06d.jpg', i+1)));
     data = load(fullfile(DET_DIR, sprintf('%06d_dets.mat', i+1)));
     dets_next = data.dets;
@@ -21,13 +24,34 @@ for i = start_frame:end_frame
     % t in frame j
     % sim(k,t)=0 means that k and t should probably not be the same track
     sim = compute_similarity(dets_cur, dets_next, im_cur, im_next);
+
+    sim_track = cell(size(sim, 1), 5);
+    count = 1;
+    while max(max(sim)) > 0
+        % Get the row and col indices of the highest similarity of sim
+        [maxSim, ind] = max(sim(:));
+        [row, col] = ind2sub(size(sim), ind);
+        
+        % Store the images, max similarity score, and the current and next
+        % DETS into the cells
+        sim_track{count, 1} = im_cur;
+        sim_track{count, 2} = im_next;
+        sim_track{count, 3} = maxSim;
+        sim_track{count, 4} = dets_cur(row, :);
+        sim_track{count, 5} = dets_next(col, :);
+        
+        % Remove the highest similarity from the list
+        sim(row, col) = 0;
+        count = count + 1;
+    end;
+    
+    track{1, i - start_frame + 1} = sim_track;
 end;
 
 end
 
 
 function sim = compute_similarity(dets_cur, dets_next, im_cur, im_next)
-
 n = size(dets_cur, 1);
 m = size(dets_next, 1);
 sim = zeros(n, m);
@@ -79,6 +103,5 @@ function area = compute_area(dets)
 end
 
 function c = compute_center(dets)
-
-c = 0.5 * (dets(:, [1:2]) + dets(:, [3:4]));
+   c = 0.5 * (dets(:, [1:2]) + dets(:, [3:4]));
 end
